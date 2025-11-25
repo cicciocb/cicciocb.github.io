@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html style="background-color: whitesmoke;">
+<head>
+    <title>Annex32 VGA Image tester</title>
+</head>
+<body>
+        <div id="dropArea" style="border: 2px dashed #ccc; padding: 1px; text-align: center;">
+        <p>Drag & drop an image here to preview VGA 8-bit conversion.</p>
+    </div>
+    <br>
+    <canvas id="originalCanvas"></canvas>
+    <canvas id="convertedCanvas"></canvas>
+    <p id="colorInfo"></p>
+
+    <style>
+        #colorInfo {
+            position: absolute;
+            background-color: white;
+            padding: 5px;
+            border: 1px solid black;
+            font-size: 12px;
+        }
+    </style>
+
+    <script>
+        const dropArea = document.getElementById('dropArea');
+        const originalCanvas = document.getElementById('originalCanvas');
+        const convertedCanvas = document.getElementById('convertedCanvas');
+        const colorInfo = document.getElementById('colorInfo');
+
+        const originalCtx = originalCanvas.getContext('2d');
+        const convertedCtx = convertedCanvas.getContext('2d');
+
+        function getMousePos(canvas, event) {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            return { x, y };
+        }
+
+        function getColorAtPosition(ctx, x, y) {
+            const pixel = ctx.getImageData(x, y, 1, 1).data;
+            return `R: ${pixel[0]}, G: ${pixel[1]}, B: ${pixel[2]}, A: ${pixel[3]}`;
+        }
+
+        // Prevent default behavior on dragover event
+        dropArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropArea.style.border = '2px dashed #333';
+        });
+
+        // Handle drop event
+        dropArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropArea.style.border = '2px dashed #ccc';
+
+            const file = e.dataTransfer.files[0];
+            const fileReader = new FileReader();
+
+            fileReader.onload = function() {
+                const sourceImage = new Image();
+                sourceImage.onload = function() {
+                    // Set canvas dimensions to match image dimensions
+                    originalCanvas.width = sourceImage.width;
+                    originalCanvas.height = sourceImage.height;
+                    convertedCanvas.width = sourceImage.width;
+                    convertedCanvas.height = sourceImage.height;
+
+                    // Draw the original image onto the original canvas
+                    originalCtx.drawImage(sourceImage, 0, 0);
+
+                    // Read original pixel data
+                    const originalImageData = originalCtx.getImageData(0, 0, originalCanvas.width, originalCanvas.height);
+                    const originalPixels = originalImageData.data;
+
+                    // Create new image data for the converted image
+                    const convertedImageData = convertedCtx.createImageData(convertedCanvas.width, convertedCanvas.height);
+                    const convertedPixels = convertedImageData.data;
+
+                    // Convert each pixel
+                    for (let i = 0; i < originalPixels.length; i += 4) {
+                        const r = originalPixels[i];
+                        const g = originalPixels[i + 1];
+                        const b = originalPixels[i + 2];
+                        const a = originalPixels[i + 3]; // Alpha value
+
+                        // Perform the conversion to 3-3-2 format
+                        const r332 = Math.floor(r / 32);
+                        const g332 = Math.floor(g / 32);
+                        const b332 = Math.floor(b / 64); // Adjusted the division factor
+
+                        // Set converted pixel values
+                        convertedPixels[i] = r332 * 255/7;       // Red
+                        convertedPixels[i + 1] = g332 * 255/7;   // Green
+                        convertedPixels[i + 2] = b332 * 255/3;   // Blue
+                        convertedPixels[i + 3] = a;             // Alpha
+                    }
+
+                    // Put the converted pixel data onto the converted canvas
+                    convertedCtx.putImageData(convertedImageData, 0, 0);
+                };
+                sourceImage.src = fileReader.result;
+            };
+
+            fileReader.readAsDataURL(file);
+        });
+
+    originalCanvas.addEventListener('mousemove', (e) => {
+        const mousePos = getMousePos(originalCanvas, e);
+        const roundedX = Math.floor(mousePos.x);
+        const roundedY = Math.floor(mousePos.y);
+        const color = getColorAtPosition(originalCtx, roundedX, roundedY);
+        const originalCanvasRect = originalCanvas.getBoundingClientRect();
+        const adjustedX = mousePos.x + originalCanvasRect.left + window.scrollX; // Adjust for canvas and scroll
+        const adjustedY = mousePos.y + originalCanvasRect.top + window.scrollY;
+        colorInfo.textContent = `Original Image - X: ${roundedX}, Y: ${roundedY}, Color: ${color}`;
+        colorInfo.style.left = `${adjustedX}px`;
+        colorInfo.style.top = `${adjustedY}px`;
+    });
+
+    convertedCanvas.addEventListener('mousemove', (e) => {
+        const mousePos = getMousePos(convertedCanvas, e);
+        const roundedX = Math.floor(mousePos.x);
+        const roundedY = Math.floor(mousePos.y);
+        const color = getColorAtPosition2(convertedCtx, roundedX, roundedY);
+        const convertedCanvasRect = convertedCanvas.getBoundingClientRect();
+        const adjustedX = mousePos.x + convertedCanvasRect.left + window.scrollX;
+        const adjustedY = mousePos.y + convertedCanvasRect.top + window.scrollY;
+        colorInfo.textContent = `Converted Image - X: ${roundedX}, Y: ${roundedY}, Color: ${color}`;
+        colorInfo.style.left = `${adjustedX}px`;
+        colorInfo.style.top = `${adjustedY}px`;
+    });
+
+    function getColorAtPosition2(ctx, x, y) {
+        const pixel = ctx.getImageData(x, y, 1, 1).data;
+        return `R: ${pixel[0]>>5}, G: ${pixel[1]>>5}, B: ${pixel[2]>>6}, A: ${pixel[3]>>7}`;
+    }
+    </script>
+</body>
+</html>
